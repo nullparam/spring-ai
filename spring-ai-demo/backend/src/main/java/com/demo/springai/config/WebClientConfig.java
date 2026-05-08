@@ -10,7 +10,7 @@ public class WebClientConfig {
     @Bean
     public WebClient webClient() {
         return WebClient.builder()
-                .baseUrl("https://api.xiaomimimo.com")
+                .baseUrl("https://token-plan-cn.xiaomimimo.com/v1")
                 .build();
     }
 }

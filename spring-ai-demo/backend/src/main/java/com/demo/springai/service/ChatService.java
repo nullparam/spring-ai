@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.MediaType;
-
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -40,7 +39,7 @@ public class ChatService {
                 });
     }
 
-    public Flux<String> chatStream(ChatRequest request) {
+    public Flux<String> chatStreamSse(ChatRequest request) {
         ObjectNode body = buildRequestBody(request.getMessage(), true);
 
         return webClient.post()
@@ -50,26 +49,19 @@ public class ChatService {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToFlux(String.class)
-                .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
-                .map(line -> {
-                    if (line.startsWith("data: ")) {
-                        return line.substring(6);
-                    }
-                    return line;
-                })
-                .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
+                .filter(line -> !line.isBlank())
                 .mapNotNull(line -> {
+                    String raw = line.startsWith("data: ") ? line.substring(6).trim() : line.trim();
+                    if ("[DONE]".equals(raw)) return null;
                     try {
-                        JsonNode json = objectMapper.readTree(line);
+                        JsonNode json = objectMapper.readTree(raw);
                         String delta = json.path("choices").path(0).path("delta").path("content").asText(null);
-                        if (delta != null && !delta.isEmpty()) {
-                            return "data: " + delta + "\n\n";
-                        }
-                    } catch (Exception ignored) {
+                        return delta;
+                    } catch (Exception e) {
+                        return null;
                     }
-                    return null;
                 })
-                .concatWithValues("data: [DONE]\n\n");
+                .filter(s -> s != null && !s.isEmpty());
     }
 
     private ObjectNode buildRequestBody(String message, boolean stream) {
